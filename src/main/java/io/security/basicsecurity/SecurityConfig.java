@@ -28,11 +28,25 @@ import java.io.IOException;
 @RequiredArgsConstructor
 public class SecurityConfig {
 /**
- * to-do list : 인텔리제이 디버깅 , evalution tab 알아보기 , 토큰 기반 인증? , jsessionid in spring security
- * Authentication : User, Authorities 를 가지는 객체
+ * to-do list : 인텔리제이 디버깅 , evalution tab 알아보기 , 토큰 기반 인증? , jsessionid?=> 로그인 전에 페이지만 들어가도 생김 why? java-docs
+ * Authentication : User, Authorities 를 가지는 인증객체
  * SecurityContext : Authentication 객체 저장소 class
- * SecurityContext 객체는 나중에 세션에 저장된다
- * */
+ * SecurityContext 객체는 나중에 세션(HttpSession class)에 저장된다
+ *
+ * rememberMe 설정을 켜면 remember-me 라는 이름의 쿠키가 생성되고 , 이 쿠키 안에 인증정보가 담겨 있다
+ * 개발자도구상에서 jsessionid를 일부러 삭제하고 재요청해도 다시 인증하지 않아도 된다.
+ * rememberMe 쿠키가 없는 상황에서는 jsessionid 쿠키를 삭제했을때 인증페이지(로그인)으로 리다이렉트된다다
+ * RememberMeAuthenticationFilter가 동작할 2가지 조건 1. Authentication 객체가 null 이면서(세션 만료) 2. 사용자가 요청 헤더에 remeber-me cookie 값을 가지고 있을 때
+ * 다시 인증을 시도(token값과 User정보 조회)해서 인증객체를 가질 수 있도록 이 필터가 작동한다
+ * 새로운 인증객체가 생성되면 다시 AuthenticationManager가 인증처리를 함
+ *  chain.doFilter => FilterChain에 여러개의 필터가 등록되어 있고 한 필터를 거친 다음 필터로 가는 방식
+ *
+ *  SecurityContext 객체 안에 Authentication 객체가 없으면 AnonymousAuthenticationFilter 가 작동해서
+ *  익명인증객체(Anonymous AuthenticationToken)을 생성한다, 익명인증객체는 세션에 저장되지 않는다. isAnonymous() = true인 경우
+ *  로그인 페이지로 redirect 하는 로직.
+ *
+ **/
+
     private final UserDetailsService userDetailService;
 
     @Bean
@@ -41,7 +55,7 @@ public class SecurityConfig {
                 .authorizeRequests()
                 .anyRequest().authenticated();
         http
-                .formLogin() //formLogin api
+                .formLogin() //인증방식 : formLogin api
 //                .loginPage("/loginPage")
 //                .defaultSuccessUrl("/")
 //                .failureUrl("/login")
