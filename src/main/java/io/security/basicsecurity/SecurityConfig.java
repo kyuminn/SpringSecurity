@@ -8,6 +8,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
+import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.core.userdetails.UserDetailsService;
@@ -28,7 +29,9 @@ import java.io.IOException;
 @RequiredArgsConstructor
 public class SecurityConfig {
 /**
- * to-do list : 인텔리제이 디버깅 , evalution tab 알아보기 , 토큰 기반 인증? , jsessionid?=> 로그인 전에 페이지만 들어가도 생김 why? java-docs
+ * to-do list : 인텔리제이 디버깅 , evalution tab 알아보기 , 토큰 기반 인증(jwt)? , jsessionid?=> 로그인 전에 페이지만 들어가도 생김 why? java-docs , 빌더 패턴 , 어댑터 패턴
+ * 자세한 필터 설명은 강의자료에..
+ *
  * Authentication : User, Authorities 를 가지는 인증객체
  * SecurityContext : Authentication 객체 저장소 class
  * SecurityContext 객체는 나중에 세션(HttpSession class)에 저장된다
@@ -45,6 +48,7 @@ public class SecurityConfig {
  *  익명인증객체(Anonymous AuthenticationToken)을 생성한다, 익명인증객체는 세션에 저장되지 않는다. isAnonymous() = true인 경우
  *  로그인 페이지로 redirect 하는 로직.
  *
+ *  인증방식  1. 스프링 시큐리티에서 세션을 생성해서 그 세션으로 인증하는 방식 2. 세션 대신 토큰으로 인증하는 방식 (jwt같이)
  **/
 
     private final UserDetailsService userDetailService;
@@ -53,7 +57,7 @@ public class SecurityConfig {
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception{
         http
                 .authorizeRequests()
-                .anyRequest().authenticated();
+                .anyRequest().authenticated(); // 어떤 요청이든지 인증을 받은 사용자만 자원에 접근할 수 있는 설정
         http
                 .formLogin() //인증방식 : formLogin api
 //                .loginPage("/loginPage")
@@ -101,6 +105,13 @@ public class SecurityConfig {
                 .rememberMeParameter("remember")
                 .tokenValiditySeconds(3600) // 초 단위 , 1시간
                 .userDetailsService(userDetailService);
+        http
+                .sessionManagement() // 동시 세션 제어 API
+//                .sessionFixation().changeSessionId() //default가 changeSessionId, 인증할 때마다 세션 쿠키를 새로 발급(jsessionid가 변함)하여 공격자의 쿠키 조작을 방지
+                .maximumSessions(1)
+                .maxSessionsPreventsLogin(true) //true:기존 세션자가 인증을 우선으로 가진다 , false:가장 최근의 사용자가 인증권을 우선으로 가짐
+//                .sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED)
+        ;
         return http.build();
     }
 }
