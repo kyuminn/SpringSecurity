@@ -11,7 +11,11 @@ import org.springframework.security.config.annotation.web.configuration.EnableWe
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.AuthenticationException;
+import org.springframework.security.core.userdetails.User;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
+import org.springframework.security.provisioning.InMemoryUserDetailsManager;
+import org.springframework.security.provisioning.UserDetailsManager;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.AuthenticationFailureHandler;
 import org.springframework.security.web.authentication.AuthenticationSuccessHandler;
@@ -49,15 +53,21 @@ public class SecurityConfig {
  *  로그인 페이지로 redirect 하는 로직.
  *
  *  인증방식  1. 스프링 시큐리티에서 세션을 생성해서 그 세션으로 인증하는 방식 2. 세션 대신 토큰으로 인증하는 방식 (jwt같이)
+ *
  **/
-
-    private final UserDetailsService userDetailService;
+//순환 참조 문제때문에 userDetailService 안쓸때는 잠시 주석처리
+//    private final UserDetailsService userDetailService;
 
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception{
+        // 소스 코드에 직접 인가,인증 설정을 하는 선언적 방식 
+        // 실전 프로젝트에는 동적으로 바꿀 예정
         http
                 .authorizeRequests()
-                .anyRequest().authenticated(); // 어떤 요청이든지 인증을 받은 사용자만 자원에 접근할 수 있는 설정
+                .antMatchers("/user").hasRole("USER") //특정 자원의 경로에 대해 특정 권한이 있는지 검사하는 부분
+                .antMatchers("/admin/pay").hasRole("ADMIN")
+                .antMatchers("/admin/**").access("hasRole('ADMIN') or hasRole('SYS')")
+                .anyRequest().authenticated();
         http
                 .formLogin() //인증방식 : formLogin api
 //                .loginPage("/loginPage")
@@ -82,36 +92,59 @@ public class SecurityConfig {
 //                })
 //                .permitAll()
         ;
-        http
-                .logout() // default method : post
-                .logoutUrl("/logout")
-                .logoutSuccessUrl("/login")
-                .addLogoutHandler(new LogoutHandler() {
-                    @Override
-                    public void logout(HttpServletRequest request, HttpServletResponse response, Authentication authentication) {
-                        HttpSession session = request.getSession();
-                        session.invalidate();
-                    }
-                })
-                .logoutSuccessHandler(new LogoutSuccessHandler() {
-                    @Override
-                    public void onLogoutSuccess(HttpServletRequest request, HttpServletResponse response, Authentication authentication) throws IOException, ServletException {
-                        response.sendRedirect("/login");
-                    }
-                })
-                .deleteCookies("remember-me")
-            .and()
-                .rememberMe() // rememberMe 기능 활성화
-                .rememberMeParameter("remember")
-                .tokenValiditySeconds(3600) // 초 단위 , 1시간
-                .userDetailsService(userDetailService);
-        http
-                .sessionManagement() // 동시 세션 제어 API
+//        http
+//                .logout() // default method : post
+//                .logoutUrl("/logout")
+//                .logoutSuccessUrl("/login")
+//                .addLogoutHandler(new LogoutHandler() {
+//                    @Override
+//                    public void logout(HttpServletRequest request, HttpServletResponse response, Authentication authentication) {
+//                        HttpSession session = request.getSession();
+//                        session.invalidate();
+//                    }
+//                })
+//                .logoutSuccessHandler(new LogoutSuccessHandler() {
+//                    @Override
+//                    public void onLogoutSuccess(HttpServletRequest request, HttpServletResponse response, Authentication authentication) throws IOException, ServletException {
+//                        response.sendRedirect("/login");
+//                    }
+//                })
+//                .deleteCookies("remember-me")
+//            .and()
+//                .rememberMe() // rememberMe 기능 활성화
+//                .rememberMeParameter("remember")
+//                .tokenValiditySeconds(3600) // 초 단위 , 1시간
+//                .userDetailsService(userDetailService);
+//        http
+//                .sessionManagement() // 동시 세션 제어 API
 //                .sessionFixation().changeSessionId() //default가 changeSessionId, 인증할 때마다 세션 쿠키를 새로 발급(jsessionid가 변함)하여 공격자의 쿠키 조작을 방지
-                .maximumSessions(1)
-                .maxSessionsPreventsLogin(true) //true:기존 세션자가 인증을 우선으로 가진다 , false:가장 최근의 사용자가 인증권을 우선으로 가짐
+//                .maximumSessions(1)
+//                .maxSessionsPreventsLogin(true) //true:기존 세션자가 인증을 우선으로 가진다 , false:가장 최근의 사용자가 인증권을 우선으로 가짐
 //                .sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED)
         ;
         return http.build();
     }
+
+    // In-memory 방식으로 User 생성 해보기
+    @Bean
+    public UserDetailsManager users(){
+        // Spring secuirty 암호화 기능에서 어떤 암호화 방식을 사용했는지 password 앞의 {}안에 넣는다. 아무것도 사용하지 않았으면 noop 사용
+        UserDetails user = User.builder()
+                .username("user")
+                .password("{noop}1111")
+                .roles("USER")
+                .build();
+        UserDetails sys = User.builder()
+                .username("sys")
+                .password("{noop}1111")
+                .roles("SYS","USER")
+                .build();
+        UserDetails admin = User.builder()
+                .username("admin")
+                .password("{noop}1111")
+                .roles("ADMIN","SYS","USER") // In-memory 방식이 아닐 때는 Role Hierarchy로 권한계층을 설정할 수 있다 (admin이 다른 권한을 포함하는 것 처럼?)
+                .build();
+        return new InMemoryUserDetailsManager(user,sys,admin);
+    }
+
 }
