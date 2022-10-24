@@ -6,6 +6,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
@@ -16,11 +17,16 @@ import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.provisioning.InMemoryUserDetailsManager;
 import org.springframework.security.provisioning.UserDetailsManager;
+import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.access.AccessDeniedHandler;
 import org.springframework.security.web.authentication.AuthenticationFailureHandler;
 import org.springframework.security.web.authentication.AuthenticationSuccessHandler;
 import org.springframework.security.web.authentication.logout.LogoutHandler;
 import org.springframework.security.web.authentication.logout.LogoutSuccessHandler;
+import org.springframework.security.web.savedrequest.HttpSessionRequestCache;
+import org.springframework.security.web.savedrequest.RequestCache;
+import org.springframework.security.web.savedrequest.SavedRequest;
 
 import javax.servlet.ServletException;
 import javax.servlet.http.HttpServletRequest;
@@ -33,7 +39,7 @@ import java.io.IOException;
 @RequiredArgsConstructor
 public class SecurityConfig {
 /**
- * to-do list : 인텔리제이 디버깅 , evalution tab 알아보기 , 토큰 기반 인증(jwt)? , jsessionid?=> 로그인 전에 페이지만 들어가도 생김 why? java-docs , 빌더 패턴 , 어댑터 패턴
+ * to-do list : 인텔리제이 디버깅 , evalution tab 알아보기 java-docs , 빌더 패턴 , 어댑터 패턴 , @커스텀 어노테이션(interface) 생성 , 커스텀 필터 추가해보기
  * 자세한 필터 설명은 강의자료에..
  *
  * Authentication : User, Authorities 를 가지는 인증객체
@@ -52,8 +58,9 @@ public class SecurityConfig {
  *  익명인증객체(Anonymous AuthenticationToken)을 생성한다, 익명인증객체는 세션에 저장되지 않는다. isAnonymous() = true인 경우
  *  로그인 페이지로 redirect 하는 로직.
  *
- *  인증방식  1. 스프링 시큐리티에서 세션을 생성해서 그 세션으로 인증하는 방식 2. 세션 대신 토큰으로 인증하는 방식 (jwt같이)
- *
+ * 스프링 컨테이너는 @Configuration이 붙어있는 클래스를 자동으로 빈으로 등록해두고, 해당 클래스를 파싱해서 @Bean이 있는 메소드를 찾아서 빈을 생성해준다.
+ * 생성된 Bean의 이름은 메소드명과 동일하다
+ * https://mangkyu.tistory.com/75
  **/
 //순환 참조 문제때문에 userDetailService 안쓸때는 잠시 주석처리
 //    private final UserDetailsService userDetailService;
@@ -64,10 +71,12 @@ public class SecurityConfig {
         // 실전 프로젝트에는 동적으로 바꿀 예정
         http
                 .authorizeRequests()
-                .antMatchers("/user").hasRole("USER") //특정 자원의 경로에 대해 특정 권한이 있는지 검사하는 부분
-                .antMatchers("/admin/pay").hasRole("ADMIN")
-                .antMatchers("/admin/**").access("hasRole('ADMIN') or hasRole('SYS')")
-                .anyRequest().authenticated();
+//                .antMatchers("/login").permitAll() // 로그인 페이지는 인증,인가받지 않아도 접근할 수 있도록 함
+//                .antMatchers("/user").hasRole("USER") //특정 자원의 경로에 대해 특정 권한이 있는지 검사하는 부분
+//                .antMatchers("/admin/pay").hasRole("ADMIN")
+//                .antMatchers("/admin/**").access("hasRole('ADMIN') or hasRole('SYS')")
+//                .anyRequest().authenticated();
+                .anyRequest().permitAll();
         http
                 .formLogin() //인증방식 : formLogin api
 //                .loginPage("/loginPage")
@@ -79,8 +88,10 @@ public class SecurityConfig {
 //                .successHandler(new AuthenticationSuccessHandler() {
 //                    @Override
 //                    public void onAuthenticationSuccess(HttpServletRequest request, HttpServletResponse response, Authentication authentication) throws IOException, ServletException {
-//                        System.out.println("authentication:"+authentication.getName());
-//                        response.sendRedirect("/");
+//                        RequestCache requestCache = new HttpSessionRequestCache();
+//                        SavedRequest savedRequest = requestCache.getRequest(request, response); // 인증 전에 사용자가 가고자 했던 자원에 대한 정보(경로..)가 request에 저장되어 있음
+//                        String redirectUrl = savedRequest.getRedirectUrl();
+//                        response.sendRedirect(redirectUrl);
 //                    }
 //                })
 //                .failureHandler(new AuthenticationFailureHandler() {
@@ -92,6 +103,20 @@ public class SecurityConfig {
 //                })
 //                .permitAll()
         ;
+//        http
+//                .exceptionHandling()
+//                .authenticationEntryPoint(new AuthenticationEntryPoint() { //인증예외 발생시 처리함
+//                    @Override
+//                    public void commence(HttpServletRequest request, HttpServletResponse response, AuthenticationException authException) throws IOException, ServletException {
+//                        response.sendRedirect("/login");
+//                    }
+//                })
+//                .accessDeniedHandler(new AccessDeniedHandler() { // 인가예외 발생시 처리함
+//                    @Override
+//                    public void handle(HttpServletRequest request, HttpServletResponse response, AccessDeniedException accessDeniedException) throws IOException, ServletException {
+//                        response.sendRedirect("/denied");
+//                    }
+//                })
 //        http
 //                .logout() // default method : post
 //                .logoutUrl("/logout")
