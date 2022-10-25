@@ -6,12 +6,14 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.annotation.Order;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.AuthenticationException;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.User;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
@@ -34,12 +36,13 @@ import javax.servlet.http.HttpServletResponse;
 import javax.servlet.http.HttpSession;
 import java.io.IOException;
 
-@Configuration
+//@Configuration //EnableWebSecurity 안에 @Configuration 포함됨
 @EnableWebSecurity
 @RequiredArgsConstructor
 public class SecurityConfig {
 /**
- * to-do list : 인텔리제이 디버깅 , evalution tab 알아보기 java-docs , 빌더 패턴 , 어댑터 패턴 , @커스텀 어노테이션(interface) 생성 , 커스텀 필터 추가해보기
+ * to-do list : 인텔리제이 디버깅 , evalution tab 알아보기 java-docs , 빌더 패턴 , 어댑터 패턴 , @커스텀 어노테이션(interface) 생성 , 커스텀 필터 추가해보기, 스레드
+ *  익명 클래스
  * 자세한 필터 설명은 강의자료에..
  *
  * Authentication : User, Authorities 를 가지는 인증객체
@@ -61,10 +64,17 @@ public class SecurityConfig {
  * 스프링 컨테이너는 @Configuration이 붙어있는 클래스를 자동으로 빈으로 등록해두고, 해당 클래스를 파싱해서 @Bean이 있는 메소드를 찾아서 빈을 생성해준다.
  * 생성된 Bean의 이름은 메소드명과 동일하다
  * https://mangkyu.tistory.com/75
+ *
+ * HttpSecurity 객체로 설정한 api의 종류에 따라 SecurityFilterChain에 담긴 filters 구성 종류가 달라짐.
+ * 사용자의 요청을 가장 먼저 받는 부분 :FitlerChainProxy
+ * FitlerChainProxy는 SecurityFilterChains 안에 여러개의 필터체인을 가지고 있고, 각 필터체인은 여러개의 필터 목록으로 구성되어 있다
+ * 요청을 받은 직후 필터체인의 여러개의 필터들을 호출하면서 각 필터들에게 해당 요청을 처리하게 하는 로직이다.
+ *
+ * 설정 값 우선순위 : @EnableWebSecurity가 적용된 class > applictaion.yml or properties
  **/
 //순환 참조 문제때문에 userDetailService 안쓸때는 잠시 주석처리
 //    private final UserDetailsService userDetailService;
-
+    @Order(1)
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception{
         // 소스 코드에 직접 인가,인증 설정을 하는 선언적 방식 
@@ -76,8 +86,9 @@ public class SecurityConfig {
 //                .antMatchers("/admin/pay").hasRole("ADMIN")
 //                .antMatchers("/admin/**").access("hasRole('ADMIN') or hasRole('SYS')")
 //                .anyRequest().authenticated();
-                .anyRequest().permitAll();
-        http
+                .anyRequest().permitAll()
+                .and()
+        
                 .formLogin() //인증방식 : formLogin api
 //                .loginPage("/loginPage")
 //                .defaultSuccessUrl("/")
@@ -146,7 +157,23 @@ public class SecurityConfig {
 //                .maximumSessions(1)
 //                .maxSessionsPreventsLogin(true) //true:기존 세션자가 인증을 우선으로 가진다 , false:가장 최근의 사용자가 인증권을 우선으로 가짐
 //                .sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED)
-        ;
+        /**
+         * 부모 스레드와 자식 스레드 간 인증 객체 공유 가능하게 설정
+         */
+        SecurityContextHolder.setStrategyName(SecurityContextHolder.MODE_INHERITABLETHREADLOCAL); 
+        return http.build();
+    }
+    // 다중 config 설정 추가
+    @Order(0)
+    @Bean
+    public SecurityFilterChain filterChain2(HttpSecurity http) throws Exception{
+        http
+                .antMatcher("/admin/**")
+                .authorizeRequests()
+                .anyRequest().authenticated()
+            .and()
+                .httpBasic();// 해석 : /admin 하위로 요청했을때 다음과같이 요청에 인가를 한다. 어떤 요청이든지 인증되어 있어야 한다. 인증 api는 httpBasic 이다 .
+        // httpBasic의 인증 값은 application.properties에 선언한 값이 default 인 듯.
         return http.build();
     }
 

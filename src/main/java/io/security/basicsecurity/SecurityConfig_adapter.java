@@ -22,6 +22,8 @@ import java.io.IOException;
  *  스프링 시큐리티가 초기화될때 WebSecurityConfigurerAdapter를 호출하고, configure() 도 호출된다
  *  이 configure method를 오버라이딩해서 시큐리티 설정을 나의 프로젝트에 맞게 customize 할 수 있다
  *  시큐리티, 설정 부분은 주석처리함, 낮은버전에서 사용할 때는 어노테이션 주석 풀고 , 상속받는 클래스 deprecated 안되어있는지 확인하고 쓸 것
+ *  이 버전에서 다중 config를 하려면 WebSecurityConfigureAdapter를 상속받는 default class를 하나 더 만들고 @EnableWebSecurity 와 @Order를 추가해주면 된다.
+ *
  */
 
 
